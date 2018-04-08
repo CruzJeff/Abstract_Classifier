@@ -7,6 +7,7 @@ Created on Wed Mar 28 01:19:19 2018
 """
 
 
+#Importing the Libraries
 import pandas as pd
 import string
 from nltk.corpus import stopwords
@@ -16,42 +17,48 @@ from collections import OrderedDict
 from operator import itemgetter
 import matplotlib.pyplot as plt
 import numpy as np
+import xgboost
+from keras.preprocessing.text import Tokenizer
 
+#English Stopwords (such as 'a', 'the', etc)
 eng_stopwords = set(stopwords.words("english"))
 
+#Loading in the Abstracts used as Training Data
 Chem_Abstracts = pd.read_csv("Chem_Train.csv", encoding="utf-8")
-
 CS_Abstracts = pd.read_csv("CS_Train.csv", encoding="cp1252")
 Eco_Abstracts = pd.read_csv("Eco_Train.csv", encoding="latin-1")
 Bio_Abstracts = pd.read_csv("Bio_Train.csv", encoding="latin-1")
 
+#Creating the labels for the Training Data
 Chem_Abstracts["Label"] = ["Chemistry" for x in range(len(Chem_Abstracts))]
 CS_Abstracts["Label"] = ["Computer Science" for x in range(len(CS_Abstracts))]
 Eco_Abstracts["Label"] = ["Ecology" for x in range(len(Eco_Abstracts))]
 Bio_Abstracts["Label"] = ["Biology" for x in range(len(Bio_Abstracts))]
 
+#Loading in the Abstracts used as Testing Data
 Chem_Test = pd.read_csv("Chem_Test.csv", encoding="utf-8")
 CS_Test = pd.read_csv("CS_Test.csv", encoding="cp1252")
 Eco_Test = pd.read_csv("Eco_Test.csv",encoding="latin-1")
 Bio_Test = pd.read_csv("Bio_Test.csv", encoding='latin-1')
 
+#Creating the labels for the Testing Data
 Chem_Test["Label"] = ["Chemistry" for x in range(len(Chem_Test))]
 CS_Test["Label"] = ["Computer Science" for x in range(len(CS_Test))]
 Eco_Test["Label"] = ["Ecology" for x in range(len(Eco_Test))]
 Bio_Test["Label"] = ["Biology" for x in range(len(Bio_Test))]
 
-
-
+#Creating the Analyze method to calculate features of the Abstracts
 def Analyze(dataframe):
     
     dataframe["Num_Words"] = dataframe["Abstracts"].apply(lambda x: len(str(x).split()))
-
+    
     dataframe["num_unique_words"] = dataframe["Abstracts"].apply(lambda x: len(set(str(x).split())))
 
     dataframe["num_stopwords"] = dataframe["Abstracts"].apply(lambda x: len([w for w in str(x).lower().split() if w in eng_stopwords]))
 
     dataframe["num_punctuations"] = dataframe["Abstracts"].apply(lambda x: len([c for c in str(x) if c in string.punctuation]) )
 
+#Doing the Analysis on all of the data
 Analyze(Chem_Abstracts)
 Analyze(CS_Abstracts)
 Analyze(Eco_Abstracts)
@@ -61,21 +68,21 @@ Analyze(Bio_Test)
 Analyze(CS_Test)
 Analyze(Eco_Test)
 
+#Combining all the Training Data
 Train = pd.concat([Eco_Abstracts,CS_Abstracts,Bio_Abstracts, Chem_Abstracts], ignore_index=True)
 
+#Combining all the Testing Data
 Test =  pd.concat([Eco_Test,CS_Test,Bio_Test, Chem_Test], ignore_index=True)
 
-#Random Forest Classifier
-
-import xgboost
-
+#Creating X_Train and Y_Train
 X_Train = Train.iloc[:,2:6]
 Y_Train = Train["Label"]
 
+#Creating X_Test and Y_Test
 X_Test = Test.iloc[:,2:6]
 Y_Test = Test["Label"]
 
-
+#Finding the 100 most common words across all the abstracts
 words = []
 for passage in Train["Abstracts"]:
     words.append(re.findall(r'\w+', passage))
@@ -92,8 +99,7 @@ sorted_counts = OrderedDict(sorted(word_counts.items(), key=itemgetter(1),revers
 
 top_100 = list(sorted_counts)[0:100]
 
-#Create bag of words
-from keras.preprocessing.text import Tokenizer
+#Create one hot bag of words encoding to add to the data
 max_words = 100 
 tokenize = Tokenizer(num_words = max_words, char_level = False)
 tokenize.fit_on_texts(words)
@@ -102,18 +108,21 @@ x_test = pd.DataFrame(tokenize.texts_to_matrix(Test["Abstracts"]))
 X_Train = pd.concat([X_Train,x_train], axis = 1)
 X_Test = pd.concat([X_Test,x_test], axis = 1)
 
+#Creating XGBoost Classifier
 boost = xgboost.XGBClassifier(n_estimators=800)
 boost.fit(X_Train,Y_Train)
 
+#Getting predictions
 pred = list(boost.predict(X_Test))
 true = list(Y_Test)
 
+#Checking how many errors there are
 error = 0
-
 for x in range(len(true)):
     if true[x] != pred[x]:
         error += 1
 
+#Creating confusion matrix
 y_actu = pd.Series(true, name='Actual')
 y_pred = pd.Series(pred, name='Predicted')
 df_confusion = pd.crosstab(y_actu, y_pred)
@@ -131,5 +140,3 @@ def plot_confusion_matrix(df_confusion, title='Confusion matrix', cmap=plt.cm.gr
 
 plot_confusion_matrix(df_confusion)
     
-#Turn this into machine learning problem?
-#Find more abstracts, and create classification model to see what abstracts get confused as others
