@@ -76,17 +76,31 @@ X_Test = Test.iloc[:,2:6]
 Y_Test = Test["Label"]
 
 
+words = []
+for passage in Train["Abstracts"]:
+    words.append(re.findall(r'\w+', passage))
+
+words = [j for i in words for j in i]
+
+words=  [w for w in words if (not w.lower() in eng_stopwords and w[0] != '/' and w[0] != 'x' and len(w) != 1)]
+
+cap_words = [word.upper() for word in words]
+
+word_counts = Counter(cap_words)
+
+sorted_counts = OrderedDict(sorted(word_counts.items(), key=itemgetter(1),reverse = True))
+
+top_100 = list(sorted_counts)[0:100]
+
 #Create bag of words
 from keras.preprocessing.text import Tokenizer
-max_words = 100 #Assignment says to use 100, but I find that using 250 gave better results
+max_words = 100 
 tokenize = Tokenizer(num_words = max_words, char_level = False)
-
-tokenize.fit_on_texts(Train["Abstracts"])
+tokenize.fit_on_texts(words)
 x_train = pd.DataFrame(tokenize.texts_to_matrix(Train["Abstracts"]))
 x_test = pd.DataFrame(tokenize.texts_to_matrix(Test["Abstracts"]))
 X_Train = pd.concat([X_Train,x_train], axis = 1)
 X_Test = pd.concat([X_Test,x_test], axis = 1)
-
 
 boost = xgboost.XGBClassifier(n_estimators=800)
 boost.fit(X_Train,Y_Train)
@@ -119,20 +133,3 @@ plot_confusion_matrix(df_confusion)
     
 #Turn this into machine learning problem?
 #Find more abstracts, and create classification model to see what abstracts get confused as others
-
-words = []
-
-for passage in Chem_Abstracts["Abstracts"]:
-    words.append(re.findall(r'\w+', passage))
-
-words = [j for i in words for j in i]
-
-words=  [w for w in words if (not w.lower() in eng_stopwords and w[0] != '/' and w[0] != 'x' and len(w) != 1)]
-
-cap_words = [word.upper() for word in words]
-
-word_counts = Counter(cap_words)
-
-sorted_counts = OrderedDict(sorted(word_counts.items(), key=itemgetter(1),reverse = True))
-
-sorted_counts.keys()
