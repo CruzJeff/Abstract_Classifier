@@ -1,3 +1,4 @@
+
 # -*- coding: utf-8 -*-
 """
 Created on Wed Mar 28 01:19:19 2018
@@ -13,7 +14,8 @@ import re
 from collections import Counter
 from collections import OrderedDict
 from operator import itemgetter
-
+import matplotlib.pyplot as plt
+import numpy as np
 
 eng_stopwords = set(stopwords.words("english"))
 
@@ -23,14 +25,21 @@ CS_Abstracts = pd.read_csv("CS_Train.csv", encoding="cp1252")
 Eco_Abstracts = pd.read_csv("Eco_Train.csv", encoding="latin-1")
 Bio_Abstracts = pd.read_csv("Bio_Train.csv", encoding="latin-1")
 
+Chem_Abstracts["Label"] = ["Chemistry" for x in range(len(Chem_Abstracts))]
+CS_Abstracts["Label"] = ["Computer Science" for x in range(len(CS_Abstracts))]
+Eco_Abstracts["Label"] = ["Ecology" for x in range(len(Eco_Abstracts))]
+Bio_Abstracts["Label"] = ["Biology" for x in range(len(Bio_Abstracts))]
+
 Chem_Test = pd.read_csv("Chem_Test.csv", encoding="utf-8")
 CS_Test = pd.read_csv("CS_Test.csv", encoding="cp1252")
 Eco_Test = pd.read_csv("Eco_Test.csv",encoding="latin-1")
 Bio_Test = pd.read_csv("Bio_Test.csv", encoding='latin-1')
 
+Chem_Test["Label"] = ["Chemistry" for x in range(len(Chem_Test))]
+CS_Test["Label"] = ["Computer Science" for x in range(len(CS_Test))]
+Eco_Test["Label"] = ["Ecology" for x in range(len(Eco_Test))]
+Bio_Test["Label"] = ["Biology" for x in range(len(Bio_Test))]
 
-#Turn this into machine learning problem?
-#Find more abstracts, and create classification model to see what abstracts get confused as others
 
 
 def Analyze(dataframe):
@@ -47,6 +56,69 @@ Analyze(Chem_Abstracts)
 Analyze(CS_Abstracts)
 Analyze(Eco_Abstracts)
 Analyze(Bio_Abstracts)
+Analyze(Chem_Test)
+Analyze(Bio_Test)
+Analyze(CS_Test)
+Analyze(Eco_Test)
+
+Train = pd.concat([Eco_Abstracts,CS_Abstracts,Bio_Abstracts, Chem_Abstracts], ignore_index=True)
+
+Test =  pd.concat([Eco_Test,CS_Test,Bio_Test, Chem_Test], ignore_index=True)
+
+#Random Forest Classifier
+
+import xgboost
+
+X_Train = Train.iloc[:,2:6]
+Y_Train = Train["Label"]
+
+X_Test = Test.iloc[:,2:6]
+Y_Test = Test["Label"]
+
+
+#Create bag of words
+from keras.preprocessing.text import Tokenizer
+max_words = 100 #Assignment says to use 100, but I find that using 250 gave better results
+tokenize = Tokenizer(num_words = max_words, char_level = False)
+
+tokenize.fit_on_texts(Train["Abstracts"])
+x_train = pd.DataFrame(tokenize.texts_to_matrix(Train["Abstracts"]))
+x_test = pd.DataFrame(tokenize.texts_to_matrix(Test["Abstracts"]))
+X_Train = pd.concat([X_Train,x_train], axis = 1)
+X_Test = pd.concat([X_Test,x_test], axis = 1)
+
+
+boost = xgboost.XGBClassifier(n_estimators=800)
+boost.fit(X_Train,Y_Train)
+
+pred = list(boost.predict(X_Test))
+true = list(Y_Test)
+
+error = 0
+
+for x in range(len(true)):
+    if true[x] != pred[x]:
+        error += 1
+
+y_actu = pd.Series(true, name='Actual')
+y_pred = pd.Series(pred, name='Predicted')
+df_confusion = pd.crosstab(y_actu, y_pred)
+
+def plot_confusion_matrix(df_confusion, title='Confusion matrix', cmap=plt.cm.gray_r):
+    plt.matshow(df_confusion, cmap=cmap) # imshow
+    #plt.title(title)
+    plt.colorbar()
+    tick_marks = np.arange(len(df_confusion.columns))
+    plt.xticks(tick_marks, df_confusion.columns, rotation=45)
+    plt.yticks(tick_marks, df_confusion.index)
+    #plt.tight_layout()
+    plt.ylabel(df_confusion.index.name)
+    plt.xlabel(df_confusion.columns.name)
+
+plot_confusion_matrix(df_confusion)
+    
+#Turn this into machine learning problem?
+#Find more abstracts, and create classification model to see what abstracts get confused as others
 
 words = []
 
